@@ -5,7 +5,7 @@ vcf2fasta.py is Python program that extracts FASTA alignments from VCF files giv
 
 ## Note
 
-**I just editted some codes for my own purpose. It now should work with bed or gff only. The vcf file I used was generated from MC for pangenome purpose and therefore samples are phasde and haploid.**
+**I just editted some codes for my own purpose. It now should work with bed or gff file only. The vcf file I used was generated from MC for pangenome purpose and therefore samples are phased and haploid.**
 
 There should be several bugs in this version, but that worked for me haha. So if anyone has other problems or custom purposes, we could discuss them together or you can fork this repo and edit it anyway.
 
