@@ -27,38 +27,38 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter,
         description="""
         Converts regions/intervals in the genome into FASTA alignments
-        provided a VCF file, a GFF/GTF file, and FASTA reference.\n""",
+        provided a VCF file, a GFF file, and FASTA reference.\n""",
         epilog="""
-        All files must be indexed. So before running the code make sure
+        Before running the code make sure
         that your reference FASTA file is indexed:
 
-        samtools faidx genome.fas
+        samtools faidx genome.fa
 
-        BGZIP compress and TABIX index your VCF file:
+        BGZIP compress and index your VCF file:
 
-        bgzip variants.vcf
-        tabix variants.vcf.gz
+        (bgzip variants.vcf)
+        tabix variants.vcf(.gz) (or bcftools index variants.vcf(.gz))
 
-        The GFF/GTF file does not need to be indexed.
+        The GFF file does not need to be indexed.
 
         examples:
-        python vcf2fasta.py -f genome.fas -v variants.vcf.gz -g intervals.gff -e CDS
+        python vcf2fasta.py -f genome.fa -v variants.vcf.gz -g intervals.gff -e five_prime_UTR -r -rg
         \n""")
     parser.add_argument(
     '--fasta', '-f', metavar='GENOME', type=str, required=True,
     help='FASTA file with the reference genome.')
     parser.add_argument(
     '--vcf', '-v', metavar='VCF', type=str, required=True,
-    help='a tabix-indexed VCF file.')
+    help='VCF file.')
     parser.add_argument(
-    '--gff', '-g', metavar='GFF/GTF', type=str, required=False,
-    help='GFF/GTF file.')
+    '--gff', '-g', metavar='GFF', type=str, required=False,
+    help='GFF file.')
     parser.add_argument(
     '--bed', metavar='BED', type=str, required=False,
-    help='BED file.')
+    help='BED file. BED6 is preferred while the fifth column is phase value which can be used for option "--inframe". Header beginning with "#" will be ignored.')
     parser.add_argument(
     '--feat', '-e', metavar='FEAT', type=str, required=False,
-    help='feature/annotation in the GFF file. (i.e. gene, CDS, intron)')
+    help='feature/annotation in the GFF file. (i.e. gene, CDS, intron). Only for gff input.')
     parser.add_argument(
     '--blend', '-b', action="store_true", default=False,
     help='concatenate GFF entries of FEAT into a single alignment. Useful for CDS. (default: False)')
@@ -74,6 +74,9 @@ def main():
     parser.add_argument(
     '--skip', '-s', action="store_true", default=False,
     help='skips features without variants (default: False)')
+    parser.add_argument(
+    '--remove-gap', '-rg', action="store_true", default=False,
+    help='remove gaps in the final alignments (default: False)')
 
     args = parser.parse_args()
 
@@ -169,12 +172,12 @@ def main():
         if args.skip and varsites != 0:
             withdata += 1
             for featname in sequences.keys():
-                with open(outdir + "/" + featname + ".fas", "w") as out:
-                    v2f.printFasta(sequences[featname], out)
+                with open(outdir + "/" + featname + ".fa", "w") as out:
+                    v2f.printFasta(sequences[featname], out, args.remove_gap)
         elif not args.skip:
             for featname in sequences.keys():
-                with open(outdir + "/" + featname + ".fas", "w") as out:
-                    v2f.printFasta(sequences[featname], out)
+                with open(outdir + "/" + featname + ".fa", "w") as out:
+                    v2f.printFasta(sequences[featname], out, args.remove_gap)
         feature_counter += 1
         progress = v2f.make_progress_bar(feature_counter, len(genes), t1, 70)
         print("\r", progress[0] % progress[1:], end='', flush=True)
