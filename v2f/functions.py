@@ -29,6 +29,7 @@ def getSequences(
         if args.feat:
             for rec in intervals[gene]:
                 featname = gene + "_" + args.feat + "_" + str(feat_ind)
+                #featname = rec[-1]
                 seqs[featname] = collections.defaultdict()
                 feat_ind += 1
         else:
@@ -55,14 +56,18 @@ def getSequences(
     featname = gene
     codon_start = collections.defaultdict(list)
     for rec in intervals[gene]:
-        if not args.blend:
+        if not args.blend and args.feat:
             featname = gene + "_" + args.feat + "_" + str(feat_ind)
+            #featname = rec[-1]
             feat_ind += 1
         # get a new copy of seqs for every feature
         tmpseqs = collections.defaultdict()
         # extract relevant info from GFF/BED
         if args.bed:
-            chrom,start,end,strand,cs = rec[0],int(rec[1]),int(rec[2]),"+",0
+            try:
+                chrom,start,end,strand,cs = rec[0],int(rec[1]),int(rec[2]),rec[5],rec[4]
+            except:
+                chrom,start,end,strand,cs = rec[0],int(rec[1]),int(rec[2]),"+",'.'
         else:
             chrom,start,end,strand,cs = rec[0],int(rec[3])-1,int(rec[4]),rec[6],rec[7]
         # add cs to codon_start
@@ -87,23 +92,25 @@ def getSequences(
             # this is the cumulative number of positions to add if
             # positions are take or are added to the sequence
             posadd += max_len - ref_len
-        for sample in seqs[featname].keys(): seqs[featname][sample] = seqs[featname][sample] + tmpseqs[sample]
-    # reverse complement sequence if needed
-    if strand == "-":
-        for sample in seqs[featname].keys(): seqs[featname][sample] = revcomp(seqs[featname][sample])
-    # adjust if inframe is on
-    if args.inframe:
-        if args.blend and codon_start[featname][0] != ".":
-            if strand == "+" and codon_start[featname][0] != "0":
-                for key in seqs[featname].keys():
-                    seqs[featname][key] = seqs[featname][key][int(codon_start[featname][0]):]
-            elif strand == "-" and codon_start[featname][-1] != "0":
-                for key in seqs[featname].keys():
-                    seqs[featname][key] = seqs[featname][key][int(codon_start[featname][-1]):]
-        elif not args.blend:
-            for featname in seqs.keys():
-                for key in seqs[featname].keys():
-                    seqs[featname][key] = seqs[featname][key][int(codon_start[featname][0]):]
+        # reverse complement sequence if needed
+        if strand == "-":
+            for sample in seqs[featname].keys(): seqs[featname][sample] = seqs[featname][sample] + revcomp(tmpseqs[sample])
+        else:
+            for sample in seqs[featname].keys(): seqs[featname][sample] = seqs[featname][sample] + tmpseqs[sample]
+    
+        # adjust if inframe is on
+        if args.inframe:
+            if args.blend and codon_start[featname][0] != ".":
+                if strand == "+" and codon_start[featname][0] != "0":
+                    for key in seqs[featname].keys():
+                        seqs[featname][key] = seqs[featname][key][int(codon_start[featname][0]):]
+                elif strand == "-" and codon_start[featname][-1] != "0":
+                    for key in seqs[featname].keys():
+                        seqs[featname][key] = seqs[featname][key][int(codon_start[featname][-1]):]
+            elif not args.blend:
+                for featname in seqs.keys():
+                    for key in seqs[featname].keys():
+                        seqs[featname][key] = seqs[featname][key][int(codon_start[featname][0]):]
     return seqs, varsites
 
 # main algorithm of vcf2fasta
@@ -128,7 +135,7 @@ def getAlleles(rec, ploidy, phased, addref):
         alleles_expanded['REF'] = [dict_expanded[rec.ref]]
     # add one for missing data if any, and incorporate to alleles_expanded dict
     if None in segregating:
-        dict_expanded[''] = '?' * max_len
+        dict_expanded[''] = '-' * max_len
         alleles_missing = { i:[dict_expanded[''] for j in range(ploidy)] for i in alleles.keys() if alleles[i][0] is None }
         for i in alleles_missing.keys(): alleles_expanded[i] = alleles_missing[i]
     if phased:
@@ -218,12 +225,16 @@ def getIUPAC(x):
         return iupacd
 
 
-def printFasta(seqs, out):
+def printFasta(seqs, out, remove_gap):
     '''
     writes FASTA to file
     '''
     for head in seqs.keys():
-        out.write(">" + head + "\n" + seqs[head] + "\n")
+        out.write(">" + head + "\n")
+        if not remove_gap:
+            out.write(seqs[head] + "\n")
+        else:
+            out.write(seqs[head].replace('-', '') + "\n")
 
 def getFeature(file):
     '''
@@ -296,12 +307,22 @@ def ReadBED(file):
     '''
     returns a dictionary of with 0-based genomic intervals
     '''
+    bed = {}
     with open(file) as f:
-        lines = f.read().splitlines()
-        bed = { 
-            "g" + str(i + 1): [lines[i].split("\t")] 
-            for i in range(len(lines))
-        }
+        i = 1
+        for line in f:
+            if not line.strip().startswith('#'):
+                tmp = line.strip().split('\t')
+                if len(tmp) == 3:
+                    bed[f'g{i}'] = tmp
+                    i += 1
+                elif len(tmp) == 6:
+                    if tmp[4] in ['.', '0', '1', '2']:
+                        bed[tmp[3]] = tmp
+                    else:
+                        sys.exit('The fifth column in Bed6 file is considered as phase value here\nand therefore should be the one from (".", "0", "1", "2")')
+                else:
+                    sys.exit('please input Bed3 or Bed6')
     return bed
 
 
@@ -362,8 +383,8 @@ def filterFeatureInGFF(gff, feat):
     for gene in gff.keys():
         if len(gff[gene][feat]) != 0:
             filtered_gff[gene] = gff[gene][feat]
-        else:
-            _ = filtered_gff.pop(gene)
+        #else:
+        #    _ = filtered_gff.pop(gene)
     return filtered_gff
 
 def getPloidy(vcf):
