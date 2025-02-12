@@ -11,12 +11,12 @@ except:
 # this function gets everything processed to produce a set
 # of sequences in a dictionary, along with other info
 def getSequences(
-        intervals, 
-        gene, 
-        ref, 
-        vcf, 
-        ploidy, 
-        phased, 
+        intervals,
+        gene,
+        ref,
+        vcf,
+        ploidy,
+        phased,
         samples,
         args
     ):
@@ -34,7 +34,7 @@ def getSequences(
                 feat_ind += 1
         else:
             seqs[gene] = collections.defaultdict()
-                
+
     if phased:
         for key in seqs.keys():
             for sample in samples:
@@ -93,11 +93,15 @@ def getSequences(
             # positions are take or are added to the sequence
             posadd += max_len - ref_len
         # reverse complement sequence if needed
+        # issue #22 wrong way for reverse complement on the '-' strand
+        # The order of the concatnate sequence isn't right. In the gff file all features sort by the coordinates
+        # basing on the plus strand. So the following the order of lines the new coming cds should add before the
+        # sequence.
         if strand == "-":
-            for sample in seqs[featname].keys(): seqs[featname][sample] = seqs[featname][sample] + revcomp(tmpseqs[sample])
+            for sample in seqs[featname].keys(): seqs[featname][sample] = revcomp(tmpseqs[sample]) + seqs[featname][sample]
         else:
             for sample in seqs[featname].keys(): seqs[featname][sample] = seqs[featname][sample] + tmpseqs[sample]
-    
+
         # adjust if inframe is on
         if args.inframe:
             if args.blend and codon_start[featname][0] != ".":
