@@ -1,52 +1,65 @@
+#!/usr/bin/env python3
 import os
 import re
 import argparse
 from Bio import SeqIO
 from collections import defaultdict
+from multiprocessing import Pool, cpu_count
 
 def check_id_format(seq_id):
     """Check if the sequence ID follows the IQ-TREE input requirements."""
-    # Example regex for IQ-TREE ID format (adjust as needed)
     iqtree_id_pattern = re.compile(r'^[A-Za-z0-9_]+$')
     return bool(iqtree_id_pattern.match(seq_id))
+
+def process_fasta_file(file_path, check_alignment, check_id):
+    """Process a single FASTA file and return its sequences and lengths."""
+    sequences_dict = SeqIO.index(file_path, 'fasta')
+
+    # Check sequence IDs if required
+    if check_id:
+        for seq_id in sequences_dict:
+            if not check_id_format(seq_id):
+                raise ValueError(f"Sequence ID {seq_id} in file {file_path} does not match IQ-TREE format.")
+
+    # Check alignment length if required
+    if check_alignment:
+        seq_lengths = set(len(sequences_dict[seq_id].seq) for seq_id in sequences_dict)
+        if len(seq_lengths) > 1:
+            raise ValueError(f"Sequences in file {file_path} have varying lengths.")
+
+    # Store sequences and their lengths
+    sequences = {seq_id: str(sequences_dict[seq_id].seq) for seq_id in sequences_dict}
+    seq_length = len(next(iter(sequences_dict.values())).seq)
+
+    return sequences, seq_length
 
 def process_fasta_files(folder_name, output_fasta, output_partition, check_alignment, check_id):
     # List all FASTA files in the folder
     fasta_files = [f for f in os.listdir(folder_name) if f.endswith('.fasta') or f.endswith('.fa')]
 
     # Dictionary to store concatenated sequences for each ID
-    concatenated_sequences = defaultdict(str)
+    concatenated_sequences = defaultdict(list)
 
     # Dictionary to store sequence lengths for each file (for partition file)
     file_lengths = {}
 
-    # Process each FASTA file
-    for fasta_file in fasta_files:
-        file_path = os.path.join(folder_name, fasta_file)
-        sequences_dict = SeqIO.to_dict(SeqIO.parse(file_path, 'fasta'))
+    # Use multiprocessing to process files in parallel
+    with Pool(cpu_count()) as pool:
+        results = pool.starmap(
+            process_fasta_file,
+            [(os.path.join(folder_name, fasta_file), check_alignment, check_id) for fasta_file in fasta_files]
+        )
 
-        # Check sequence IDs if required
-        if check_id:
-            for seq_id in sequences_dict:
-                if not check_id_format(seq_id):
-                    raise ValueError(f"Sequence ID {seq_id} in file {fasta_file} does not match IQ-TREE format.")
-
-        # Check alignment length if required
-        if check_alignment:
-            seq_lengths = set(len(seq.seq) for seq in sequences_dict.values())
-            if len(seq_lengths) > 1:
-                raise ValueError(f"Sequences in file {fasta_file} have varying lengths.")
-
-        # Concatenate sequences for each ID
-        for seq_id, seq_record in sequences_dict.items():
-            concatenated_sequences[seq_id] += str(seq_record.seq)
-
-        # Store the length of sequences in this file for partition file
-        file_lengths[fasta_file] = len(next(iter(sequences_dict.values())).seq)
+    # Combine results from all files
+    for (sequences, seq_length), fasta_file in zip(results, fasta_files):
+        for seq_id, seq in sequences.items():
+            concatenated_sequences[seq_id].append(seq)
+        file_lengths[fasta_file] = seq_length
 
     # Write concatenated sequences to output FASTA file
     with open(output_fasta, 'w') as out_fasta:
-        for seq_id, concatenated_seq in concatenated_sequences.items():
+        for seq_id, seq_fragments in concatenated_sequences.items():
+            concatenated_seq = ''.join(seq_fragments)
             out_fasta.write(f">{seq_id}\n{concatenated_seq}\n")
 
     # Write partition information to output partition file (if specified)
