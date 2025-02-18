@@ -33,7 +33,7 @@ def process_fasta_file(file_path, check_alignment, check_id, remove_stop):
         sequences = {seq_id: str(sequences_dict[seq_id].seq)[:-3] for seq_id in sequences_dict}
     else:
         sequences = {seq_id: str(sequences_dict[seq_id].seq) for seq_id in sequences_dict}
-    seq_length = len(next(iter(sequences.values())).seq)
+    seq_length = len(list(sequences.values())[1])
 
     return sequences, seq_length
 
@@ -51,7 +51,7 @@ def process_fasta_files(folder_name, output_fasta, output_partition, check_align
     with Pool(cpu_count()) as pool:
         results = pool.starmap(
             process_fasta_file,
-            [(os.path.join(folder_name, fasta_file), check_alignment, check_id) for fasta_file in fasta_files]
+            [(os.path.join(folder_name, fasta_file), check_alignment, check_id, remove_stop) for fasta_file in fasta_files]
         )
 
     # Combine results from all files
@@ -95,7 +95,7 @@ def main():
         output_fasta=args.output_fasta,
         output_partition=args.output_partition,
         check_alignment=args.check_alignment,
-        check_id=args.check_id
+        check_id=args.check_id,
         remove_stop=args.remove_stop
     )
 
