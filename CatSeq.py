@@ -96,6 +96,7 @@ def main():
         output_partition=args.output_partition,
         check_alignment=args.check_alignment,
         check_id=args.check_id
+        remove_stop=args.remove_stop
     )
 
 if __name__ == "__main__":
