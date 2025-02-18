@@ -11,7 +11,7 @@ def check_id_format(seq_id):
     iqtree_id_pattern = re.compile(r'^[A-Za-z0-9_]+$')
     return bool(iqtree_id_pattern.match(seq_id))
 
-def process_fasta_file(file_path, check_alignment, check_id):
+def process_fasta_file(file_path, check_alignment, check_id, remove_stop):
     """Process a single FASTA file and return its sequences and lengths."""
     sequences_dict = SeqIO.index(file_path, 'fasta')
 
@@ -27,13 +27,17 @@ def process_fasta_file(file_path, check_alignment, check_id):
         if len(seq_lengths) > 1:
             raise ValueError(f"Sequences in file {file_path} have varying lengths.")
 
+    # Reomve the stop codon in each fasta files.
     # Store sequences and their lengths
-    sequences = {seq_id: str(sequences_dict[seq_id].seq) for seq_id in sequences_dict}
-    seq_length = len(next(iter(sequences_dict.values())).seq)
+    if remove_stop:
+        sequences = {seq_id: str(sequences_dict[seq_id].seq)[:-3] for seq_id in sequences_dict}
+    else:
+        sequences = {seq_id: str(sequences_dict[seq_id].seq) for seq_id in sequences_dict}
+    seq_length = len(next(iter(sequences.values())).seq)
 
     return sequences, seq_length
 
-def process_fasta_files(folder_name, output_fasta, output_partition, check_alignment, check_id):
+def process_fasta_files(folder_name, output_fasta, output_partition, check_alignment, check_id, remove_stop):
     # List all FASTA files in the folder
     fasta_files = [f for f in os.listdir(folder_name) if f.endswith('.fasta') or f.endswith('.fa')]
 
@@ -79,6 +83,7 @@ def main():
     parser.add_argument('--output_fasta', required=True, help="Output concatenated FASTA file.")
     parser.add_argument('--output_partition', help="Output partition file (optional).")
     parser.add_argument('--check_alignment', action='store_true', help="Check if sequences in each file are aligned (same length).")
+    parser.add_argument('--remove_stop', action='store_true', help="remove stop codon in concatenate sequence.")
     parser.add_argument('--check_id', action='store_true', help="Check if sequence IDs match IQ-TREE format.")
 
     # Parse arguments
