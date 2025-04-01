@@ -141,7 +141,7 @@ def getAlleles(rec, ploidy, phased, addref):
     if None in segregating:
         dict_expanded[''] = '-' * max_len
         alleles_missing = { i:[dict_expanded[''] for j in range(ploidy)] for i in alleles.keys() if alleles[i][0] is None and alleles[i][1] is not None }
-        alleles_missing = { i:[dict_expanded['REF'] for j in range(ploidy)] for i in alleles.keys() if alleles[i][0] is None and  alleles[i][1] is None }
+        alleles_missing = { i:[dict_expanded[rec.ref] for j in range(ploidy)] for i in alleles.keys() if alleles[i][0] is None and  alleles[i][1] is None }
         for i in alleles_missing.keys(): alleles_expanded[i] = alleles_missing[i]
     if phased:
         alleles_expanded = makePhased(alleles_expanded) # make them phased
